@@ -26,16 +26,16 @@ public class PotionHelperCauldron {
         return ((liquidData & 1 << paramInt2 % 15) != 0);
     }
 
-    private static boolean b(int paramInt1, int paramInt2) {
+    private static boolean isBitOne(int paramInt1, int paramInt2) {
         return ((paramInt1 & 1 << paramInt2) != 0);
     }
 
-    private static int getPotionPrefix(int paramInt1, int paramInt2) {
-        return b(paramInt1, paramInt2) ? 1 : 0;
+    private static int bitOne(int paramInt1, int paramInt2) {
+        return isBitOne(paramInt1, paramInt2) ? 1 : 0;
     }
 
-    private static int d(int paramInt1, int paramInt2) {
-        return b(paramInt1, paramInt2) ? 0 : 1;
+    private static int bitZero(int paramInt1, int paramInt2) {
+        return isBitOne(paramInt1, paramInt2) ? 0 : 1;
     }
 
     public static int getPrefixNumber(int damage) {
@@ -54,31 +54,32 @@ public class PotionHelperCauldron {
         return potionPrefixes[prefixNumber];
     }
 
-    private static int a(boolean b1, boolean b2, boolean b3, int i1, int i2, int i3, int i4) {
+    private static int a(boolean isBitFlipped, boolean isResultAmplified, boolean isSubtraction,
+                         int statusCode, int bitInfo, int amplifier, int damage) {
         int i = 0;
-        if (b1) {
-            i = d(i4, i2);
-        } else if (i1 != -1) {
-            if (i1 == 0 && h(i4) == i2) {
+        if (isBitFlipped) {
+            i = bitZero(damage, bitInfo);
+        } else if (statusCode != -1) {
+            if (statusCode == 0 && hammingWeight(damage) == bitInfo) {
                 i = 1;
-            } else if (i1 == 1 && h(i4) > i2) {
+            } else if (statusCode == 1 && hammingWeight(damage) > bitInfo) {
                 i = 1;
-            } else if (i1 == 2 && h(i4) < i2) {
+            } else if (statusCode == 2 && hammingWeight(damage) < bitInfo) {
                 i = 1;
             }
         } else {
-            i = getPotionPrefix(i4, i2);
+            i = bitOne(damage, bitInfo);
         }
-        if (b2) {
-            i *= i3;
+        if (isResultAmplified) {
+            i *= amplifier;
         }
-        if (b3) {
+        if (isSubtraction) {
             i *= -1;
         }
         return i;
     }
 
-    private static int h(int paramInt) {
+    private static int hammingWeight(int paramInt) {
         int i = 0;
         for (; paramInt > 0; i++) {
             paramInt &= paramInt - 1;
@@ -86,91 +87,92 @@ public class PotionHelperCauldron {
         return i;
     }
 
-    private static int a(String paramString, int paramInt1, int paramInt2, int paramInt3) {
-        if (paramInt1 >= paramString.length() || paramInt2 < 0 || paramInt1 >= paramInt2) return 0;
-        int i = paramString.indexOf('|', paramInt1);
-        if (i >= 0 && i < paramInt2) {
-            int i2 = a(paramString, paramInt1, i - 1, paramInt3);
+    private static int a(String paramString, int paramStringStart, int paramStringEnd, int damage) {
+        if (paramStringStart >= paramString.length() || paramStringEnd < 0 || paramStringStart >= paramStringEnd) return 0;
+        int i = paramString.indexOf('|', paramStringStart);
+        if (i >= 0 && i < paramStringEnd) {
+            int i2 = a(paramString, paramStringStart, i - 1, damage);
             if (i2 > 0) {
                 return i2;
             }
-            int i3 = a(paramString, i + 1, paramInt2, paramInt3);
+            int i3 = a(paramString, i + 1, paramStringEnd, damage);
             return Math.max(i3, 0);
         }
-        int j = paramString.indexOf('&', paramInt1);
-        if (j >= 0 && j < paramInt2) {
-            int i2 = a(paramString, paramInt1, j - 1, paramInt3);
+        int j = paramString.indexOf('&', paramStringStart);
+
+        if (j >= 0 && j < paramStringEnd) {
+            int i2 = a(paramString, paramStringStart, j - 1, damage);
             if (i2 <= 0) {
                 return 0;
             }
-            int i3 = a(paramString, j + 1, paramInt2, paramInt3);
+            int i3 = a(paramString, j + 1, paramStringEnd, damage);
             if (i3 <= 0) {
                 return 0;
             }
             return Math.max(i2, i3);
         }
-        boolean bool1 = false;
-        boolean bool2 = false;
-        boolean bool3 = false;
-        boolean bool4 = false;
-        boolean bool5 = false;
-        byte b = -1;
-        int k = 0;
-        int m = 0;
-        int n = 0;
-        for (int i1 = paramInt1; i1 < paramInt2; i1++) {
+        boolean isAmplifier = false;
+        boolean isResultAmplified = false;
+        boolean isNumberUnused = false;
+        boolean isBitFlipped = false;
+        boolean isSubtraction = false;
+        byte statusCode = -1;
+        int bitInfo = 0;
+        int amplifier = 0;
+        int result = 0;
+        for (int i1 = paramStringStart; i1 < paramStringEnd; i1++) {
             char c = paramString.charAt(i1);
             if (c >= '0' && c <= '9') {
-                if (bool1) {
-                    m = c - 48;
-                    bool2 = true;
+                if (isAmplifier) {
+                    amplifier = c - 48;
+                    isResultAmplified = true;
                 } else {
-                    k *= 10;
-                    k += c - 48;
-                    bool3 = true;
+                    bitInfo *= 10;
+                    bitInfo += c - 48;
+                    isNumberUnused = true;
                 }
             } else if (c == '*') {
-                bool1 = true;
+                isAmplifier = true;
             } else if (c == '!') {
-                if (bool3) {
-                    n += a(bool4, bool2, bool5, b, k, m, paramInt3);
-                    bool3 = bool2 = bool1 = bool5 = false;
-                    k = m = 0;
-                    b = -1;
+                if (isNumberUnused) {
+                    result += a(isBitFlipped, isResultAmplified, isSubtraction, statusCode, bitInfo, amplifier, damage);
+                    isNumberUnused = isResultAmplified = isAmplifier = isSubtraction = false;
+                    bitInfo = amplifier = 0;
+                    statusCode = -1;
                 }
-                bool4 = true;
+                isBitFlipped = true;
             } else if (c == '-') {
-                if (bool3) {
-                    n += a(bool4, bool2, bool5, b, k, m, paramInt3);
-                    bool3 = bool2 = bool1 = bool4 = false;
-                    k = m = 0;
-                    b = -1;
+                if (isNumberUnused) {
+                    result += a(isBitFlipped, isResultAmplified, isSubtraction, statusCode, bitInfo, amplifier, damage);
+                    isNumberUnused = isResultAmplified = isAmplifier = isBitFlipped = false;
+                    bitInfo = amplifier = 0;
+                    statusCode = -1;
                 }
-                bool5 = true;
+                isSubtraction = true;
             } else if (c == '=' || c == '<' || c == '>') {
-                if (bool3) {
-                    n += a(bool4, bool2, bool5, b, k, m, paramInt3);
-                    bool3 = bool2 = bool1 = bool5 = bool4 = false;
-                    k = m = 0;
+                if (isNumberUnused) {
+                    result += a(isBitFlipped, isResultAmplified, isSubtraction, statusCode, bitInfo, amplifier, damage);
+                    isNumberUnused = isResultAmplified = isAmplifier = isSubtraction = isBitFlipped = false;
+                    bitInfo = amplifier = 0;
                 }
                 if (c == '=') {
-                    b = 0;
+                    statusCode = 0;
                 } else if (c == '<') {
-                    b = 2;
+                    statusCode = 2;
                 } else {
-                    b = 1;
+                    statusCode = 1;
                 }
-            } else if (c == '+' && bool3) {
-                n += a(bool4, bool2, bool5, b, k, m, paramInt3);
-                bool3 = bool2 = bool1 = bool5 = bool4 = false;
-                k = m = 0;
-                b = -1;
+            } else if (c == '+' && isNumberUnused) {
+                result += a(isBitFlipped, isResultAmplified, isSubtraction, statusCode, bitInfo, amplifier, damage);
+                isNumberUnused = isResultAmplified = isAmplifier = isSubtraction = isBitFlipped = false;
+                bitInfo = amplifier = 0;
+                statusCode = -1;
             }
         }
-        if (bool3) {
-            n += a(bool4, bool2, bool5, b, k, m, paramInt3);
+        if (isNumberUnused) {
+            result += a(isBitFlipped, isResultAmplified, isSubtraction, statusCode, bitInfo, amplifier, damage);
         }
-        return n;
+        return result;
     }
 
     public static List<?> getPotionEffects(int damage) {
@@ -324,7 +326,7 @@ public class PotionHelperCauldron {
     }
 
     public static int getNumberInBinaryNumber(int i1, int i2, int i3, int i4, int i5, int i6) {
-        return (b(i1, i2) ? 16 : 0) | (b(i1, i3) ? 8 : 0) | (b(i1, i4) ? 4 : 0) | (b(i1, i5) ? 2 : 0) | (b(i1, i6) ? 1 : 0);
+        return (isBitOne(i1, i2) ? 16 : 0) | (isBitOne(i1, i3) ? 8 : 0) | (isBitOne(i1, i4) ? 4 : 0) | (isBitOne(i1, i5) ? 2 : 0) | (isBitOne(i1, i6) ? 1 : 0);
     }
 
     public static boolean isPotionIngredient(int itemID) {
